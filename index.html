@@ -662,7 +662,17 @@ ol.steps li b{font-family:var(--mono);font-size:14.2px;letter-spacing:.12em;text
 .subhint,.subnone{font-family:var(--sans);font-size:14px;color:var(--ink-faint);padding:2px}
 .subnone b{color:var(--ink-soft)}
 @media (max-width:560px){.subfind{padding:18px 16px}.subfind-title{font-size:22px}}
-@media print{.subfind{display:none}}</style></head><body><header class="cover"><div class="wrap"><div>
+@media print{.subfind{display:none}}
+/* collapsible pantry groups */
+.khead{width:100%;text-align:left;background:none;border:0;cursor:pointer;align-items:center;padding:6px 0;min-height:44px}
+.khead h3{margin:0}
+.kchev{width:11px;height:11px;border-right:2px solid var(--ink-soft);border-bottom:2px solid var(--ink-soft);transform:rotate(45deg);transition:transform .18s;flex:none;margin-right:2px;margin-top:-4px}
+.kgroup.collapsed .kchev{transform:rotate(-45deg);margin-top:2px}
+.kcount{font-family:var(--mono);font-size:12px;color:var(--tangerine-dk);background:var(--mint);border-radius:999px;padding:2px 9px;white-space:nowrap}
+.kcount:empty{display:none}
+.kgroup.collapsed .klist{display:none}
+#kitchen{align-items:start}
+.khead:hover h3{color:var(--tangerine-dk)}</style></head><body><header class="cover"><div class="wrap"><div>
 <p class="eyebrow">The Keith household · Dinner, solved</p>
 <h1>Favorite <em>Recipes</em></h1>
 <div class="lede">Welcome to the Keith family&#x27;s favorite recipes. These are the dinners we actually cook, handed down from grandmothers and aunts, borrowed from friends, and a few we picked up along the way. If there&#x27;s one you think belongs here, just let us know. The only rule is that it has to be budget-friendly and easy.
@@ -1038,8 +1048,8 @@ kitchen.innerHTML=GROUPS.map(function(g){
   var ids=Object.keys(I).filter(function(k){ return I[k].g===g[0] && !I[k].a; })
     .sort(function(a,b){ return (I[b].c-I[a].c)||I[a].l.localeCompare(I[b].l); });
   if(!ids.length) return '';
-  return '<div class="kgroup" data-g="'+g[0]+'"><div class="khead"><h3>'+g[1]+'</h3>'
-   +'<button type="button" class="gbtn" data-g="'+g[0]+'">all / none</button></div><ul class="klist">'
+  return '<div class="kgroup" data-g="'+g[0]+'"><button type="button" class="khead" data-collapse="'+g[0]+'" aria-expanded="true"><span class="kchev" aria-hidden="true"></span><h3>'+g[1]+'</h3><span class="kcount" data-count="'+g[0]+'"></span>'
+   +'<span class="gbtn" data-g="'+g[0]+'" role="button" tabindex="0">all / none</span></button><ul class="klist">'
    +ids.map(function(k){ return '<li class="kitem'+(I[k].x?' xtra':'')+'"'+(I[k].x?' hidden':'')
      +'><label><input type="checkbox" data-id="'+k+'"><span class="klabel">'+esc(I[k].l)
      +'</span><span class="kc">'+(I[k].c?'in '+I[k].c:'swap')+'</span></label></li>'; }).join('')
@@ -1130,6 +1140,7 @@ function render(){
   kitchen.querySelectorAll('input[data-id]').forEach(function(x){
     x.checked=!!have[x.dataset.id];
     var li=x.closest('.kitem'); if(li&&li.classList.contains('xtra')) li.hidden=!subs; });
+  if(typeof updateKitchenCounts==='function') updateKitchenCounts();
 }
 
 meatWrap.addEventListener('click',function(e){
@@ -1144,15 +1155,40 @@ kitchen.addEventListener('change',function(e){
   if(x.checked) have[x.dataset.id]=1; else delete have[x.dataset.id];
   render();
 });
-kitchen.addEventListener('click',function(e){
-  var b=e.target.closest('.gbtn'); if(!b) return;
-  var ids=[].slice.call(kitchen.querySelectorAll('.kgroup[data-g="'+b.dataset.g+'"] .kitem'))
+function allNone(g){
+  var ids=[].slice.call(kitchen.querySelectorAll('.kgroup[data-g="'+g+'"] .kitem'))
     .filter(function(li){return !li.hidden;})
     .map(function(li){return li.querySelector('input').dataset.id;});
-  var allOn=ids.every(function(id){return have[id];});
+  var allOn=ids.length && ids.every(function(id){return have[id];});
   ids.forEach(function(id){ if(allOn) delete have[id]; else have[id]=1; });
   render();
+}
+function toggleGroup(g){
+  var grp=kitchen.querySelector('.kgroup[data-g="'+g+'"]');
+  var head=grp.querySelector('.khead');
+  var open=grp.classList.toggle('collapsed');
+  head.setAttribute('aria-expanded', open?'false':'true');
+}
+kitchen.addEventListener('click',function(e){
+  var g2=e.target.closest('.gbtn');
+  if(g2){ e.stopPropagation(); allNone(g2.dataset.g); return; }
+  var head=e.target.closest('.khead');
+  if(head){ toggleGroup(head.dataset.collapse); }
 });
+kitchen.addEventListener('keydown',function(e){
+  if(e.key!=='Enter' && e.key!==' ') return;
+  var g2=e.target.closest('.gbtn');
+  if(g2){ e.preventDefault(); e.stopPropagation(); allNone(g2.dataset.g); }
+});
+/* keep each group's "N ticked" badge current */
+function updateKitchenCounts(){
+  GROUPS.forEach(function(g){
+    var n=0, ids=kitchen.querySelectorAll('.kgroup[data-g="'+g[0]+'"] .kitem input');
+    [].forEach.call(ids,function(inp){ if(have[inp.dataset.id]) n++; });
+    var badge=kitchen.querySelector('.kcount[data-count="'+g[0]+'"]');
+    if(badge) badge.textContent = n? n+' ticked' : '';
+  });
+}
 var subBtn=document.getElementById('subToggle');
 function setSub(){ subBtn.setAttribute('aria-pressed',subs?'true':'false'); }
 subBtn.addEventListener('click',function(){ subs=!subs; setSub(); render(); });
